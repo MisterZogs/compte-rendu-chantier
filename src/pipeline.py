@@ -1,0 +1,560 @@
+"""
+Pipeline CLI : audio → transcription → structuration → export Word
+Usage :
+  python pipeline.py                        # mode mock complet
+  python pipeline.py --audio fichier.mp3    # avec vrai fichier audio (clé Gladia requise)
+  python pipeline.py --transcription t.txt  # depuis une transcription existante
+"""
+
+import argparse
+import json
+import os
+import sys
+import time
+import requests
+from pathlib import Path
+from datetime import date
+
+# Charge .env si présent (python-dotenv optionnel)
+try:
+    from dotenv import load_dotenv
+    load_dotenv(Path(__file__).parent.parent / ".env")
+except ImportError:
+    pass
+
+# --------------------------------------------------------------------------- #
+# 1. TRANSCRIPTION (mock ou Gladia réel)
+# --------------------------------------------------------------------------- #
+
+GLADIA_API_URL = "https://api.gladia.io"
+
+MOCK_TRANSCRIPTION = """
+Alors bonjour à tous, on est le 28 mai 2025, on se retrouve sur le chantier de la maison Dupont,
+au 12 rue des Lilas à Lyon. Sont présents : moi-même Jean-Marc Aubert, architecte du cabinet Aubert
+et Associés, Michel Renard de chez Bâticorp pour le gros œuvre, Sophie Leclaire de chez ElecPro
+pour l'électricité, et Thomas Blanc de Menuiserie Blanche. Monsieur Fabre de la plomberie est absent,
+il nous a prévenus ce matin.
+
+Alors on commence par le gros œuvre. Michel, où en est-on sur le dallage du garage ?
+Michel dit que le coulage est prévu jeudi prochain, le premier juin. Il attend la confirmation
+météo mais ça devrait être bon. Par contre il signale un problème sur le mur de refend au niveau
+du salon, il y a une fissure d'environ deux millimètres qui est apparue, il faut qu'on regarde ça
+ensemble. On décide de faire un constat la semaine prochaine avec un bureau de contrôle.
+Jean-Marc note que Michel doit envoyer le PV de résistance du béton avant vendredi.
+
+Pour la charpente, elle est posée, RAS, nickel. Pas de remarque.
+
+On passe à l'électricité. Sophie explique que le passage des gaines dans les cloisons du premier
+étage est terminé à quatre-vingts pour cent. Il reste la chambre parentale et la salle de bain.
+Prévu pour fin de semaine prochaine. Elle demande à avoir les plans de cuisine définitifs pour
+pouvoir positionner les prises, elle attend ça de l'architecte. Jean-Marc dit qu'il envoie ça
+ce soir par email.
+
+Menuiseries extérieures avec Thomas. Les fenêtres du rez-de-chaussée sont posées, mais Thomas
+signale que la fenêtre de la cuisine a un problème de joint, elle ferme mal. Il faut une
+intervention du fabricant, Thomas prend contact cette semaine. Les fenêtres du premier étage
+ne sont pas encore livrées, retard fournisseur, nouveau délai annoncé au quinze juin.
+
+Questions diverses : Jean-Marc rappelle que l'accès au chantier doit être sécurisé, il manque
+un cadenas sur le portail. Michel s'en charge demain.
+
+Prochaine réunion le mardi dix juin à quatorze heures sur le chantier.
+Diffusion du CR à tous les présents plus Monsieur Fabre et le maître d'ouvrage Monsieur Dupont.
+"""
+
+
+def transcribe_audio(audio_path: str) -> str:
+    api_key = os.environ.get("GLADIA_API_KEY")
+    if not api_key:
+        print("[ERREUR] GLADIA_API_KEY non définie. Utilisez le mode mock.")
+        sys.exit(1)
+
+    headers = {"x-gladia-key": api_key}
+
+    # Étape 1 : upload du fichier
+    print(f"Upload de {audio_path} vers Gladia...")
+    suffix = Path(audio_path).suffix.lower()
+    content_types = {
+        ".mp3": "audio/mpeg",
+        ".m4a": "audio/mp4",
+        ".wav": "audio/wav",
+        ".ogg": "audio/ogg",
+        ".webm": "audio/webm",
+    }
+    content_type = content_types.get(suffix, "audio/mpeg")
+    with open(audio_path, "rb") as f:
+        upload_resp = requests.post(
+            f"{GLADIA_API_URL}/v2/upload",
+            headers=headers,
+            files={"audio": (Path(audio_path).name, f, content_type)},
+        )
+    if not upload_resp.ok:
+        print(f"[ERREUR upload] {upload_resp.status_code} : {upload_resp.text}")
+        sys.exit(1)
+    audio_url = upload_resp.json()["audio_url"]
+
+    # Vocabulaire métier pour corriger les homophones fréquents (lot/l'eau, etc.)
+    custom_vocabulary = [
+        "lot", "lots", "gros œuvre", "charpente", "menuiserie", "plomberie",
+        "électricité", "carrelage", "isolation", "ravalement", "enduit",
+        "DTU", "ragréage", "planéité", "doublage", "refend", "cloison",
+        "fermette", "fêtage", "faîtage", "laine de roche", "ICTA",
+        "maître d'œuvre", "maître d'ouvrage", "compte rendu", "réunion de chantier",
+        "moi-même", "réserve", "levée de réserve", "situation de travaux",
+        "pont thermique", "tassement différentiel", "basse tension",
+    ]
+
+    # Étape 2 : lancer la transcription avec diarisation
+    print("Transcription en cours (diarisation activée)...")
+    transcription_resp = requests.post(
+        f"{GLADIA_API_URL}/v2/pre-recorded",
+        headers={**headers, "Content-Type": "application/json"},
+        json={
+            "audio_url": audio_url,
+            "language_config": {"languages": ["fr"], "code_switching": False},
+            "diarization": True,
+            "diarization_config": {"min_speakers": 2, "max_speakers": 8},
+            "custom_vocabulary": custom_vocabulary,
+        },
+    )
+    transcription_resp.raise_for_status()
+    job = transcription_resp.json()
+    job_id = job["id"]
+    result_url = job["result_url"]
+
+    # Étape 3 : polling jusqu'à completion
+    print(f"Job {job_id} — attente du résultat", end="", flush=True)
+    while True:
+        time.sleep(3)
+        print(".", end="", flush=True)
+        poll_resp = requests.get(result_url, headers=headers)
+        poll_resp.raise_for_status()
+        data = poll_resp.json()
+        if data["status"] == "done":
+            print(" OK")
+            break
+        if data["status"] == "error":
+            print()
+            print(f"[ERREUR Gladia] {data.get('error_message', 'inconnue')}")
+            sys.exit(1)
+
+    # Étape 4 : formater la transcription avec locuteurs
+    utterances = data["result"]["transcription"]["utterances"]
+    lines = []
+    for u in utterances:
+        lines.append(f"Intervenant {u['speaker']} : {u['text']}")
+    return "\n".join(lines)
+
+
+def get_transcription(args) -> str:
+    if args.transcription:
+        return Path(args.transcription).read_text(encoding="utf-8")
+    if args.audio:
+        return transcribe_audio(args.audio)
+    print("[MOCK] Utilisation de la transcription de démonstration.")
+    return MOCK_TRANSCRIPTION
+
+
+
+
+
+# --------------------------------------------------------------------------- #
+# 2. STRUCTURATION LLM (mock ou Mistral réel)
+# --------------------------------------------------------------------------- #
+
+SYSTEM_PROMPT = """Tu es un assistant spécialisé dans la rédaction de comptes rendus de chantier pour architectes français.
+
+À partir de la transcription d'une réunion de chantier, tu dois produire un compte rendu structuré au format JSON.
+
+Règles :
+- Identifie tous les intervenants mentionnés (nom, qualité, entreprise si mentionné)
+- Classe chaque point soulevé par lot (gros œuvre, charpente, électricité, plomberie, menuiserie, etc.)
+- Pour chaque point, identifie : la description, la décision prise (si applicable), l'action à mener, le responsable, le délai
+- Identifie la date et le lieu de la prochaine réunion si mentionnés
+- En cas d'ambiguïté, garde les deux versions possibles avec une note [À VÉRIFIER]
+- Ne jamais inventer d'informations non présentes dans la transcription
+- La transcription peut contenir des erreurs de reconnaissance vocale typiques du français : corrige-les par le contexte. Exemples fréquents : "l'eau" → "lot", "Mohamed" ou un prénom isolé → probablement "moi-même" (l'architecte qui parle), "l'eau numéro" → "lot numéro", "lever" → "livrer" selon contexte, "réserve" conservé tel quel car terme métier.
+- Pour la numérotation des lots : si elle n'est pas explicitement mentionnée dans la transcription, numéroter séquentiellement 01, 02, 03, etc. dans l'ordre d'apparition. Ne jamais inventer un numéro de lot.
+- Pour chaque action identifiée, attribuer le responsable à la personne qui s'engage à la faire, pas à celle qui la reçoit. Si l'architecte dit "je lui envoie" ou "j'envoie", le responsable est l'architecte. Si une entreprise "s'engage" ou "s'en charge", le responsable est cette entreprise.
+- Pour les délais : convertir "vendredi prochain" en date absolue en se basant sur la date de réunion fournie. Vendredi suivant le 2026-06-01 = 2026-06-05.
+
+Réponds UNIQUEMENT avec le JSON, sans texte avant ou après.
+
+Format de sortie JSON :
+{
+  "numero_cr": null,
+  "date_reunion": "YYYY-MM-DD ou null",
+  "lieu": "adresse ou null",
+  "presents": [{"nom": "", "qualite": "", "entreprise": ""}],
+  "absents": [{"nom": "", "qualite": "", "entreprise": ""}],
+  "lots": [
+    {
+      "numero": "01",
+      "nom": "GROS ŒUVRE",
+      "entreprise": "",
+      "points": [
+        {
+          "description": "",
+          "decision": "",
+          "action": "",
+          "responsable": "",
+          "delai": ""
+        }
+      ]
+    }
+  ],
+  "divers": [""],
+  "prochaine_reunion": {"date": "", "lieu": ""},
+  "diffusion": [""]
+}"""
+
+
+def structure_with_mistral(transcription: str, projet: str) -> dict:
+    api_key = os.environ.get("MISTRAL_API_KEY")
+    if not api_key:
+        print("[ERREUR] MISTRAL_API_KEY non définie. Utilisez le mode mock.")
+        sys.exit(1)
+
+    try:
+        from mistralai.client import Mistral
+    except ImportError:
+        print("[ERREUR] pip install mistralai")
+        sys.exit(1)
+
+    client = Mistral(api_key=api_key)
+    print("Structuration via Mistral Medium 3...")
+
+    user_prompt = f"""Voici la transcription d'une réunion de chantier.
+Projet : {projet}
+
+Transcription :
+{transcription}
+
+Produis le compte rendu structuré en JSON."""
+
+    response = client.chat.complete(
+        model="mistral-medium-latest",
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": user_prompt},
+        ],
+        temperature=0.1,
+    )
+
+    raw = response.choices[0].message.content.strip()
+    # Nettoie les éventuels blocs markdown ```json ... ```
+    if raw.startswith("```"):
+        raw = raw.split("\n", 1)[1].rsplit("```", 1)[0]
+
+    return json.loads(raw)
+
+
+MOCK_CR = {
+    "numero_cr": None,
+    "date_reunion": "2025-05-28",
+    "lieu": "12 rue des Lilas, Lyon",
+    "presents": [
+        {"nom": "Jean-Marc Aubert", "qualite": "Architecte", "entreprise": "Aubert et Associés"},
+        {"nom": "Michel Renard", "qualite": "Responsable chantier", "entreprise": "Bâticorp"},
+        {"nom": "Sophie Leclaire", "qualite": "Électricienne", "entreprise": "ElecPro"},
+        {"nom": "Thomas Blanc", "qualite": "Menuisier", "entreprise": "Menuiserie Blanche"},
+    ],
+    "absents": [
+        {"nom": "M. Fabre", "qualite": "Plombier", "entreprise": ""},
+    ],
+    "lots": [
+        {
+            "numero": "01",
+            "nom": "GROS ŒUVRE",
+            "entreprise": "Bâticorp",
+            "points": [
+                {
+                    "description": "Coulage du dallage du garage",
+                    "decision": "Coulage prévu le 01/06/2025 sous réserve météo",
+                    "action": "Confirmer météo et procéder au coulage",
+                    "responsable": "Michel Renard (Bâticorp)",
+                    "delai": "01/06/2025",
+                },
+                {
+                    "description": "Fissure de 2mm sur le mur de refend (salon)",
+                    "decision": "Constat avec bureau de contrôle à prévoir",
+                    "action": "Organiser constat avec bureau de contrôle",
+                    "responsable": "Jean-Marc Aubert",
+                    "delai": "Semaine prochaine",
+                },
+                {
+                    "description": "PV de résistance du béton",
+                    "decision": "",
+                    "action": "Envoyer le PV de résistance du béton",
+                    "responsable": "Michel Renard (Bâticorp)",
+                    "delai": "Vendredi 30/05/2025",
+                },
+            ],
+        },
+        {
+            "numero": "02",
+            "nom": "CHARPENTE",
+            "entreprise": "",
+            "points": [
+                {
+                    "description": "Charpente posée — aucune remarque",
+                    "decision": "",
+                    "action": "",
+                    "responsable": "",
+                    "delai": "",
+                }
+            ],
+        },
+        {
+            "numero": "03",
+            "nom": "ÉLECTRICITÉ",
+            "entreprise": "ElecPro",
+            "points": [
+                {
+                    "description": "Passage des gaines dans cloisons R+1 : 80% terminé (reste chambre parentale et salle de bain)",
+                    "decision": "Fin prévue fin de semaine prochaine",
+                    "action": "Terminer passage des gaines",
+                    "responsable": "Sophie Leclaire (ElecPro)",
+                    "delai": "Fin de semaine du 02/06/2025",
+                },
+                {
+                    "description": "Plans de cuisine nécessaires pour positionnement des prises",
+                    "decision": "",
+                    "action": "Envoyer plans de cuisine définitifs",
+                    "responsable": "Jean-Marc Aubert",
+                    "delai": "Ce soir 28/05/2025",
+                },
+            ],
+        },
+        {
+            "numero": "04",
+            "nom": "MENUISERIES EXTÉRIEURES",
+            "entreprise": "Menuiserie Blanche",
+            "points": [
+                {
+                    "description": "Fenêtre cuisine : problème de joint, fermeture défectueuse",
+                    "decision": "Intervention fabricant nécessaire",
+                    "action": "Contacter le fabricant pour intervention",
+                    "responsable": "Thomas Blanc (Menuiserie Blanche)",
+                    "delai": "Cette semaine",
+                },
+                {
+                    "description": "Fenêtres R+1 non livrées — retard fournisseur",
+                    "decision": "Nouveau délai annoncé : 15/06/2025",
+                    "action": "Suivi livraison",
+                    "responsable": "Thomas Blanc (Menuiserie Blanche)",
+                    "delai": "15/06/2025",
+                },
+            ],
+        },
+    ],
+    "divers": [
+        "Sécurisation accès chantier : cadenas manquant sur le portail — Michel Renard s'en charge le 29/05/2025"
+    ],
+    "prochaine_reunion": {"date": "2025-06-10", "lieu": "Chantier, 12 rue des Lilas, Lyon"},
+    "diffusion": [
+        "Jean-Marc Aubert (Aubert et Associés)",
+        "Michel Renard (Bâticorp)",
+        "Sophie Leclaire (ElecPro)",
+        "Thomas Blanc (Menuiserie Blanche)",
+        "M. Fabre (Plombier)",
+        "M. Dupont (Maître d'ouvrage)",
+    ],
+}
+
+
+def structure_cr(transcription: str, projet: str, use_mock: bool) -> dict:
+    if use_mock:
+        print("[MOCK] Utilisation du CR de démonstration.")
+        return MOCK_CR
+    return structure_with_mistral(transcription, projet)
+
+
+# --------------------------------------------------------------------------- #
+# 3. EXPORT WORD
+# --------------------------------------------------------------------------- #
+
+def normalize_cr(cr: dict) -> dict:
+    """Normalise les champs qui peuvent être liste ou dict au lieu de str."""
+    for lot in cr.get("lots", []):
+        for point in lot.get("points", []):
+            for key in ("description", "decision", "action", "responsable", "delai"):
+                val = point.get(key, "")
+                if isinstance(val, list):
+                    parts = []
+                    for item in val:
+                        if isinstance(item, dict):
+                            parts.append(
+                                " — ".join(str(v) for v in item.values() if v)
+                            )
+                        else:
+                            parts.append(str(item))
+                    point[key] = " | ".join(parts)
+                elif isinstance(val, dict):
+                    point[key] = " — ".join(str(v) for v in val.values() if v)
+                else:
+                    point[key] = str(val) if val else ""
+    return cr
+
+
+def export_word(cr: dict, projet: str, output_path: str):
+    cr = normalize_cr(cr)
+    try:
+        from docx import Document
+        from docx.shared import Pt, RGBColor
+        from docx.enum.text import WD_ALIGN_PARAGRAPH
+    except ImportError:
+        print("[ERREUR] pip install python-docx")
+        sys.exit(1)
+
+    doc = Document()
+
+    # Style de base
+    style = doc.styles["Normal"]
+    style.font.name = "Calibri"
+    style.font.size = Pt(10)
+
+    def heading(text, level=1):
+        p = doc.add_paragraph()
+        run = p.add_run(text)
+        run.bold = True
+        run.font.size = Pt(13 if level == 1 else 11)
+        if level == 1:
+            run.font.color.rgb = RGBColor(0x1F, 0x49, 0x7D)
+        p.paragraph_format.space_after = Pt(4)
+        return p
+
+    def add_line(label, value):
+        if not value:
+            return
+        p = doc.add_paragraph()
+        run = p.add_run(f"{label} : ")
+        run.bold = True
+        p.add_run(str(value))
+        p.paragraph_format.space_after = Pt(2)
+
+    # En-tête
+    titre = doc.add_paragraph()
+    titre.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    run = titre.add_run("COMPTE RENDU DE CHANTIER")
+    run.bold = True
+    run.font.size = Pt(16)
+    run.font.color.rgb = RGBColor(0x1F, 0x49, 0x7D)
+
+    if cr.get("numero_cr"):
+        sub = doc.add_paragraph()
+        sub.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        sub.add_run(f"N° {cr['numero_cr']}").bold = True
+
+    doc.add_paragraph()
+    add_line("Opération", projet)
+    add_line("Date", cr.get("date_reunion", ""))
+    add_line("Lieu", cr.get("lieu", ""))
+    doc.add_paragraph()
+
+    # Présents / Absents
+    heading("PRÉSENTS", 2)
+    for p in cr.get("presents", []):
+        parts = [p.get("nom", ""), p.get("qualite", ""), p.get("entreprise", "")]
+        doc.add_paragraph("- " + " — ".join(x for x in parts if x), style="List Bullet")
+
+    absents = cr.get("absents", [])
+    if absents:
+        heading("ABSENTS EXCUSÉS", 2)
+        for p in absents:
+            parts = [p.get("nom", ""), p.get("qualite", ""), p.get("entreprise", "")]
+            doc.add_paragraph("- " + " — ".join(x for x in parts if x), style="List Bullet")
+
+    doc.add_paragraph()
+
+    # Lots
+    heading("POINTS ABORDÉS PAR LOT")
+    for lot in cr.get("lots", []):
+        lot_title = f"LOT {lot.get('numero', '')} — {lot.get('nom', '')}"
+        if lot.get("entreprise"):
+            lot_title += f" ({lot['entreprise']})"
+        heading(lot_title, 2)
+
+        for point in lot.get("points", []):
+            if point.get("description"):
+                p = doc.add_paragraph(style="List Bullet")
+                p.add_run(point["description"])
+
+            for label, key in [("Décision", "decision"), ("Action", "action"),
+                                ("Responsable", "responsable"), ("Délai", "delai")]:
+                if point.get(key):
+                    p = doc.add_paragraph()
+                    p.paragraph_format.left_indent = Pt(24)
+                    r = p.add_run(f"{label} : ")
+                    r.bold = True
+                    r.font.size = Pt(9)
+                    p.add_run(point[key]).font.size = Pt(9)
+                    p.paragraph_format.space_after = Pt(1)
+
+        doc.add_paragraph()
+
+    # Divers
+    divers = [d for d in cr.get("divers", []) if d]
+    if divers:
+        heading("QUESTIONS / DIVERS", 2)
+        for d in divers:
+            doc.add_paragraph("- " + d, style="List Bullet")
+        doc.add_paragraph()
+
+    # Prochaine réunion
+    pr = cr.get("prochaine_reunion", {})
+    if pr.get("date") or pr.get("lieu"):
+        heading("PROCHAINE RÉUNION", 2)
+        add_line("Date", pr.get("date", ""))
+        add_line("Lieu", pr.get("lieu", ""))
+        doc.add_paragraph()
+
+    # Diffusion
+    diffusion = [d for d in cr.get("diffusion", []) if d]
+    if diffusion:
+        heading("DIFFUSION", 2)
+        for d in diffusion:
+            doc.add_paragraph("- " + d, style="List Bullet")
+
+    doc.save(output_path)
+    print(f"CR exporté : {output_path}")
+
+
+# --------------------------------------------------------------------------- #
+# 4. MAIN
+# --------------------------------------------------------------------------- #
+
+def main():
+    parser = argparse.ArgumentParser(description="Pipeline CR de chantier")
+    parser.add_argument("--audio", help="Chemin vers le fichier audio (MP3, M4A, WAV)")
+    parser.add_argument("--transcription", help="Chemin vers un fichier texte de transcription")
+    parser.add_argument("--projet", default="Maison Dupont", help="Nom du projet")
+    parser.add_argument("--output", default="compte_rendu.docx", help="Fichier Word de sortie")
+    args = parser.parse_args()
+
+    use_mock = not args.audio and not args.transcription and not os.environ.get("GLADIA_API_KEY")
+
+    print("=== Pipeline CR de Chantier ===")
+    print(f"Projet : {args.projet}")
+    print(f"Mode   : {'MOCK (démonstration)' if use_mock else 'RÉEL'}")
+    print()
+
+    transcription = get_transcription(args)
+
+    transcription_path = Path(args.output).stem + "_transcription.txt"
+    Path(transcription_path).write_text(transcription, encoding="utf-8")
+    print(f"Transcription sauvegardée : {transcription_path}")
+
+    cr = structure_cr(transcription, args.projet, use_mock)
+
+    print()
+    print("Structure JSON générée :")
+    print(json.dumps(cr, ensure_ascii=False, indent=2))
+    print()
+
+    export_word(cr, args.projet, args.output)
+    print(f"\nTerminé. Ouvrez {args.output}")
+
+
+if __name__ == "__main__":
+    main()

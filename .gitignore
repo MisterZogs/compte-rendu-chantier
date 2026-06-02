@@ -1,0 +1,10 @@
+.env
+*.docx
+*.m4a
+*.mp3
+*.wav
+*_transcription.txt
+__pycache__/
+*.pyc
+.claude/
+auto-commit.sh
