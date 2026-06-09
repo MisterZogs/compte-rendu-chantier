@@ -177,6 +177,9 @@ Règles :
 - Pour la numérotation des lots : si elle n'est pas explicitement mentionnée dans la transcription, numéroter séquentiellement 01, 02, 03, etc. dans l'ordre d'apparition. Ne jamais inventer un numéro de lot.
 - Pour chaque action identifiée, attribuer le responsable à la personne qui s'engage à la faire, pas à celle qui la reçoit. Si l'architecte dit "je lui envoie" ou "j'envoie", le responsable est l'architecte. Si une entreprise "s'engage" ou "s'en charge", le responsable est cette entreprise.
 - Pour les délais : convertir "vendredi prochain" en date absolue en se basant sur la date de réunion fournie. Vendredi suivant le 2026-06-01 = 2026-06-05.
+- Les descriptions de points doivent être précises et techniques : inclure les dimensions chiffrées, les références de matériaux, les localisations exactes mentionnées dans la transcription. Éviter les formulations vagues.
+- Si un point mentionne un rappel ou un renvoi à un CR précédent ("comme décidé au CR08", "suite au CR13"), conserver cette référence dans la description.
+- Un point sans action ni décision (simple constat positif, ex. "charpente posée, RAS") est valide : laisser action/responsable/delai à "".
 
 Réponds UNIQUEMENT avec le JSON, sans texte avant ou après.
 
@@ -206,6 +209,149 @@ Format de sortie JSON :
   "divers": [""],
   "prochaine_reunion": {"date": "", "lieu": ""},
   "diffusion": [""]
+}
+
+---
+
+EXEMPLE RÉEL DE SORTIE ATTENDUE (CR N°16, Cafétéria CROUS Anglet, 28/05/2026) :
+
+{
+  "numero_cr": 16,
+  "date_reunion": "2026-05-28",
+  "lieu": "Cafétéria du CROUS, 59 avenue Mirambeau, 64600 Anglet",
+  "presents": [
+    {"nom": "Gautier Lamarca", "qualite": "Maître d'œuvre", "entreprise": "Atelier Gardera/Pastre"},
+    {"nom": "Peio Aguerrebere", "qualite": "Bureau d'étude technique", "entreprise": "VERDI"},
+    {"nom": "Simon Lambert", "qualite": "Responsable lot 01", "entreprise": "Labastere"},
+    {"nom": "M. Feutry", "qualite": "Responsable lot 02", "entreprise": "Cangrand"},
+    {"nom": "Patrick Gormaz", "qualite": "Responsable lot 03", "entreprise": "Joel Lesca et Fils"},
+    {"nom": "Pascal Meyer", "qualite": "Responsable lot 04", "entreprise": "Entsia"},
+    {"nom": "Christian Recalde", "qualite": "Responsable lot 05", "entreprise": "Chapelet et Saint Jean"},
+    {"nom": "Frédéric Ainciboure", "qualite": "Responsable lot 07", "entreprise": "Atlantic Revêtement"}
+  ],
+  "absents": [
+    {"nom": "M. Bertin", "qualite": "Maître de l'ouvrage", "entreprise": "CAPB"},
+    {"nom": "Mme Mattiuzzo", "qualite": "Exploitant", "entreprise": "CROUS Bordeaux Aquitaine"},
+    {"nom": "Thomas Castagnet", "qualite": "Responsable lot 06", "entreprise": "SARRAT"}
+  ],
+  "lots": [
+    {
+      "numero": "01",
+      "nom": "MENUISERIES ALUMINIUM",
+      "entreprise": "Labastere",
+      "points": [
+        {
+          "description": "Cornière aluminium à rajouter au niveau du seuil des deux portes créées (suite au décalage du carreleur)",
+          "decision": "Prévoir cornière aluminium au seuil",
+          "action": "Poser cornière aluminium au seuil des deux nouvelles portes",
+          "responsable": "Labastere",
+          "delai": ""
+        }
+      ]
+    },
+    {
+      "numero": "02",
+      "nom": "PLÂTRERIE",
+      "entreprise": "Cangrand",
+      "points": [
+        {
+          "description": "Emplacement de la trappe de visite dans le couloir non conforme au plan — doit être axée sur le couloir",
+          "decision": "Modification requise",
+          "action": "Déplacer la trappe au plafond du couloir conformément au plan",
+          "responsable": "Cangrand",
+          "delai": ""
+        },
+        {
+          "description": "Plafond droit des sanitaires : risque de coupe en partie haute avec les carreaux de 10×10",
+          "decision": "Ajout d'une plaque BA13 sur le plafond droit",
+          "action": "Poser une plaque BA13 sur le plafond droit des sanitaires",
+          "responsable": "Cangrand",
+          "delai": ""
+        }
+      ]
+    },
+    {
+      "numero": "03",
+      "nom": "CARRELAGE",
+      "entreprise": "Joel Lesca et Fils",
+      "points": [
+        {
+          "description": "Joints irréguliers au droit des poteaux béton — joint supérieur à 1cm au poteau de l'entrée alors que le maximum autorisé est 5mm (rappel CR08)",
+          "decision": "Reprise obligatoire du carreau de l'angle du poteau de l'entrée",
+          "action": "Reprendre le joint au poteau de l'entrée (5mm maxi) ; vérifier l'ensemble des joints aux poteaux",
+          "responsable": "Joel Lesca et Fils",
+          "delai": ""
+        },
+        {
+          "description": "Carrelage D-tile reçu — vérification de l'absence de casse à effectuer",
+          "decision": "",
+          "action": "Confirmer réception et contrôler l'état des carreaux D-tile",
+          "responsable": "Joel Lesca et Fils",
+          "delai": ""
+        },
+        {
+          "description": "Deux erreurs d'alignement de 1cm constatées sur le sol côté foyer et côté des deux portes créées",
+          "decision": "Tolérance zéro sur le bar : à la première erreur, reprise imposée",
+          "action": "Contrôler l'alignement avant le démarrage du bar",
+          "responsable": "Joel Lesca et Fils",
+          "delai": ""
+        }
+      ]
+    },
+    {
+      "numero": "04",
+      "nom": "MENUISERIE BOIS",
+      "entreprise": "Entsia",
+      "points": [
+        {
+          "description": "Panneau central de la retombée du bar plus clair que les autres panneaux",
+          "decision": "Foncer le panneau central pour uniformiser la teinte",
+          "action": "Foncer le panneau du centre de la retombée du bar",
+          "responsable": "Entsia",
+          "delai": ""
+        },
+        {
+          "description": "Panneaux en attente dans le foyer paraissent très jaunes — vérification nécessaire",
+          "decision": "",
+          "action": "Vérifier la teinte des panneaux en attente dans le foyer",
+          "responsable": "Entsia",
+          "delai": ""
+        }
+      ]
+    },
+    {
+      "numero": "05",
+      "nom": "ÉLECTRICITÉ CFO/CFA",
+      "entreprise": "Chapelet et Saint Jean",
+      "points": [
+        {
+          "description": "Retrait de 2 tubes électrozingués pour permettre à Entsia de changer les panneaux du centre",
+          "decision": "",
+          "action": "Retirer 2 tubes électrozingués",
+          "responsable": "Chapelet et Saint Jean",
+          "delai": ""
+        }
+      ]
+    }
+  ],
+  "divers": [
+    "MOE : envoyer le plan électricité à Mme Mattiuzzo avec la position des bornes wifi",
+    "MOE : modéliser la bande magnétique et la tablette de caisse, valider le passage de câble avec prises dans un caisson",
+    "MOE : faire valider par Enedis la possibilité de mettre un boîtier 150×110×60 côté escalier extérieur — avant le 05/06/2026"
+  ],
+  "prochaine_reunion": {"date": "2026-06-04", "lieu": "Site CROUS, 59 avenue Mirambeau, 64600 Anglet, 14h"},
+  "diffusion": [
+    "Gautier Lamarca — Atelier Gardera/Pastre (MOE)",
+    "M. Bertin — CAPB (MOA)",
+    "Mme Mattiuzzo — CROUS Bordeaux Aquitaine (Exploitant)",
+    "Labastere — Lot 01",
+    "Cangrand — Lot 02",
+    "Joel Lesca et Fils — Lot 03",
+    "Entsia — Lot 04",
+    "Chapelet et Saint Jean — Lot 05",
+    "SARRAT — Lot 06",
+    "Atlantic Revêtement — Lot 07"
+  ]
 }"""
 
 
