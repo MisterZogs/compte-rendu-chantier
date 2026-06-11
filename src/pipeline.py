@@ -60,85 +60,34 @@ Diffusion du CR à tous les présents plus Monsieur Fabre et le maître d'ouvrag
 
 
 def transcribe_audio(audio_path: str) -> str:
-    api_key = os.environ.get("GLADIA_API_KEY")
-    if not api_key:
-        print("[ERREUR] GLADIA_API_KEY non définie. Utilisez le mode mock.")
+    """Transcription locale via faster-whisper (self-hosted, gratuit)."""
+    try:
+        from faster_whisper import WhisperModel
+    except ImportError:
+        print("[ERREUR] pip install faster-whisper")
         sys.exit(1)
 
-    headers = {"x-gladia-key": api_key}
+    model_size = os.environ.get("WHISPER_MODEL", "large-v3")
+    device = os.environ.get("WHISPER_DEVICE", "cpu")
+    compute_type = "int8" if device == "cpu" else "float16"
 
-    # Étape 1 : upload du fichier
-    print(f"Upload de {audio_path} vers Gladia...")
-    suffix = Path(audio_path).suffix.lower()
-    content_types = {
-        ".mp3": "audio/mpeg",
-        ".m4a": "audio/mp4",
-        ".wav": "audio/wav",
-        ".ogg": "audio/ogg",
-        ".webm": "audio/webm",
-    }
-    content_type = content_types.get(suffix, "audio/mpeg")
-    with open(audio_path, "rb") as f:
-        upload_resp = requests.post(
-            f"{GLADIA_API_URL}/v2/upload",
-            headers=headers,
-            files={"audio": (Path(audio_path).name, f, content_type)},
-        )
-    if not upload_resp.ok:
-        print(f"[ERREUR upload] {upload_resp.status_code} : {upload_resp.text}")
-        sys.exit(1)
-    audio_url = upload_resp.json()["audio_url"]
+    print(f"Chargement du modèle Whisper {model_size} ({device})...")
+    model = WhisperModel(model_size, device=device, compute_type=compute_type)
 
-    # Vocabulaire métier pour corriger les homophones fréquents (lot/l'eau, etc.)
-    custom_vocabulary = [
-        "lot", "lots", "gros œuvre", "charpente", "menuiserie", "plomberie",
-        "électricité", "carrelage", "isolation", "ravalement", "enduit",
-        "DTU", "ragréage", "planéité", "doublage", "refend", "cloison",
-        "fermette", "fêtage", "faîtage", "laine de roche", "ICTA",
-        "maître d'œuvre", "maître d'ouvrage", "compte rendu", "réunion de chantier",
-        "moi-même", "réserve", "levée de réserve", "situation de travaux",
-        "pont thermique", "tassement différentiel", "basse tension",
-    ]
-
-    # Étape 2 : lancer la transcription avec diarisation
-    print("Transcription en cours (diarisation activée)...")
-    transcription_resp = requests.post(
-        f"{GLADIA_API_URL}/v2/pre-recorded",
-        headers={**headers, "Content-Type": "application/json"},
-        json={
-            "audio_url": audio_url,
-            "language_config": {"languages": ["fr"], "code_switching": False},
-            "diarization": True,
-            "diarization_config": {"min_speakers": 2, "max_speakers": 8},
-            "custom_vocabulary": custom_vocabulary,
-        },
+    print(f"Transcription de {audio_path} en cours...")
+    segments, info = model.transcribe(
+        audio_path,
+        language="fr",
+        beam_size=5,
+        vad_filter=True,
+        initial_prompt=(
+            "Réunion de chantier. Participants : architecte, maître d'œuvre, entreprises. "
+            "Termes : lot, gros œuvre, charpente, menuiserie, plomberie, DTU, réserve, levée de réserve."
+        ),
     )
-    transcription_resp.raise_for_status()
-    job = transcription_resp.json()
-    job_id = job["id"]
-    result_url = job["result_url"]
 
-    # Étape 3 : polling jusqu'à completion
-    print(f"Job {job_id} — attente du résultat", end="", flush=True)
-    while True:
-        time.sleep(3)
-        print(".", end="", flush=True)
-        poll_resp = requests.get(result_url, headers=headers)
-        poll_resp.raise_for_status()
-        data = poll_resp.json()
-        if data["status"] == "done":
-            print(" OK")
-            break
-        if data["status"] == "error":
-            print()
-            print(f"[ERREUR Gladia] {data.get('error_message', 'inconnue')}")
-            sys.exit(1)
-
-    # Étape 4 : formater la transcription avec locuteurs
-    utterances = data["result"]["transcription"]["utterances"]
-    lines = []
-    for u in utterances:
-        lines.append(f"Intervenant {u['speaker']} : {u['text']}")
+    print(f"Langue détectée : {info.language} (probabilité {info.language_probability:.0%})")
+    lines = [segment.text.strip() for segment in segments]
     return "\n".join(lines)
 
 
