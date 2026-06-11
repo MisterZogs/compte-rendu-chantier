@@ -67,7 +67,7 @@ def transcribe_audio(audio_path: str) -> str:
         print("[ERREUR] pip install faster-whisper")
         sys.exit(1)
 
-    model_size = os.environ.get("WHISPER_MODEL", "large-v3")
+    model_size = os.environ.get("WHISPER_MODEL", "medium")
     device = os.environ.get("WHISPER_DEVICE", "cpu")
     compute_type = "int8" if device == "cpu" else "float16"
 
