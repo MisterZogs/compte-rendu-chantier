@@ -21,10 +21,8 @@ except ImportError:
     pass
 
 # --------------------------------------------------------------------------- #
-# 1. TRANSCRIPTION (mock ou Gladia réel)
+# 1. TRANSCRIPTION (mock ou Whisper self-hosted)
 # --------------------------------------------------------------------------- #
-
-GLADIA_API_URL = "https://api.gladia.io"
 
 MOCK_TRANSCRIPTION = """
 Alors bonjour à tous, on est le 28 mai 2025, on se retrouve sur le chantier de la maison Dupont,
