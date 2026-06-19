@@ -192,7 +192,7 @@ Produis le compte rendu structuré en JSON.
 - [x] Upload fichier audio (MP3, M4A, WAV, jusqu'à 200 Mo)
 - [x] Transcription automatique via faster-whisper (local, gratuit)
 - [x] Structuration en CR via LLM (Mistral Medium 3)
-- [ ] Édition inline des champs du CR généré dans le frontend
+- [x] Édition inline des champs du CR généré dans le frontend (bouton Éditer/Terminer, add/remove sur tous les blocs)
 - [x] Export Word (.docx) avec template standard
 - [ ] Export PDF
 - [ ] Historique des CR par projet
