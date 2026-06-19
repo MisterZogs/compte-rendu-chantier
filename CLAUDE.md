@@ -166,13 +166,35 @@ Produis le compte rendu structuré en JSON.
 
 ---
 
+## État d'implémentation (juin 2026)
+
+### Backend (`src/pipeline.py`) — ✅ Complet
+- Transcription : **faster-whisper** local (modèle configurable, VAD filter, prompt métier BTP)
+- Structuration : **Mistral Medium 3** (MISTRAL_API_KEY) avec prompt système très détaillé + exemple réel (CR N°16 Cafétéria CROUS Anglet)
+- Export Word : python-docx avec mise en forme (titres colorés, lots, actions, diffusion)
+- Mode mock complet pour démo sans clés API
+
+### API (`src/api/main.py`) — ✅ Complète
+- `POST /api/transcribe` — upload audio → texte (mock si pas de clé)
+- `POST /api/structure` — transcription + projet → CR JSON
+- `POST /api/export` — CR JSON → fichier .docx en streaming
+
+### Frontend SaaS (`architecte-saas/app/src/cr-chantier/CrChantierPage.tsx`) — ✅ Fonctionnel
+- Upload audio drag & drop OU saisie transcription texte
+- Barre de progression par étape
+- Affichage CR structuré : en-tête, présents/absents, lots (collapsibles), divers
+- Bouton téléchargement Word
+
+### Ce qui manque encore
+
 ## Fonctionnalités MVP (v1)
 
-- [ ] Upload fichier audio (MP3, M4A, WAV, jusqu'à 500MB)
-- [ ] Transcription automatique via Whisper
-- [ ] Structuration en CR via LLM
-- [ ] Affichage du CR structuré avec possibilité d'édition inline
-- [ ] Export Word (.docx) avec template standard
+- [x] Upload fichier audio (MP3, M4A, WAV, jusqu'à 200 Mo)
+- [x] Transcription automatique via faster-whisper (local, gratuit)
+- [x] Structuration en CR via LLM (Mistral Medium 3)
+- [ ] Édition inline des champs du CR généré dans le frontend
+- [x] Export Word (.docx) avec template standard
+- [ ] Export PDF
 - [ ] Historique des CR par projet
 - [ ] Gestion simple des projets (nom, adresse, liste des lots, intervenants récurrents)
 
