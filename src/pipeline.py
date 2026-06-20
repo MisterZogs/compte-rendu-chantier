@@ -7,11 +7,13 @@ Usage :
 """
 
 import argparse
+import base64
+import io
 import json
 import os
 import sys
 from pathlib import Path
-from datetime import date
+from datetime import date, datetime, timezone
 
 # Charge .env si présent (python-dotenv optionnel)
 try:
