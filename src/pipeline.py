@@ -596,6 +596,22 @@ def export_word(cr: dict, projet: str, output_path: str):
                     p.add_run(point[key]).font.size = Pt(9)
                     p.paragraph_format.space_after = Pt(1)
 
+            for photo in point.get("photos", []):
+                try:
+                    img_bytes = base64.b64decode(photo["data"])
+                    p = doc.add_paragraph()
+                    p.paragraph_format.left_indent = Pt(24)
+                    p.add_run().add_picture(io.BytesIO(img_bytes), width=Inches(2.0))
+                    if photo.get("timestamp"):
+                        cap = doc.add_paragraph()
+                        cap.paragraph_format.left_indent = Pt(24)
+                        run2 = cap.add_run(_format_timestamp(photo["timestamp"]))
+                        run2.italic = True
+                        run2.font.size = Pt(8)
+                        cap.paragraph_format.space_after = Pt(1)
+                except Exception:
+                    pass
+
         doc.add_paragraph()
 
     # Divers
