@@ -105,3 +105,26 @@ async def export(req: ExportRequest):
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+@app.post("/api/export/pdf")
+async def export_to_pdf(req: ExportRequest):
+    """CR JSON + nom projet → fichier PDF."""
+    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+        tmp_path = tmp.name
+
+    try:
+        export_pdf(req.cr, req.projet, tmp_path)
+        pdf_bytes = Path(tmp_path).read_bytes()
+    except Exception as e:
+        raise HTTPException(500, f"Erreur export PDF : {e}") from e
+    finally:
+        Path(tmp_path).unlink(missing_ok=True)
+
+    safe_name = req.projet.replace(" ", "_").replace("/", "-")
+    filename = f"CR_Chantier_{safe_name}.pdf"
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
