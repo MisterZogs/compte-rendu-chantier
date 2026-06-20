@@ -193,8 +193,9 @@ Produis le compte rendu structuré en JSON.
 - [x] Transcription automatique via faster-whisper (local, gratuit)
 - [x] Structuration en CR via LLM (Mistral Medium 3)
 - [x] Édition inline des champs du CR généré dans le frontend (bouton Éditer/Terminer, add/remove sur tous les blocs)
-- [x] Export Word (.docx) avec template standard
-- [ ] Export PDF
+- [x] Export Word (.docx) avec template standard + photos embarquées
+- [x] Export PDF (fpdf2 — même endpoint, `POST /api/export/pdf`)
+- [x] Photos horodatées par point (timestamp = file.lastModified, suffisant pour les photos mobiles)
 - [ ] Historique des CR par projet
 - [ ] Gestion simple des projets (nom, adresse, liste des lots, intervenants récurrents)
 
