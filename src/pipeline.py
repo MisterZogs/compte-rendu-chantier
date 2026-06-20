@@ -506,7 +506,7 @@ def export_word(cr: dict, projet: str, output_path: str):
     cr = normalize_cr(cr)
     try:
         from docx import Document
-        from docx.shared import Pt, RGBColor
+        from docx.shared import Pt, RGBColor, Inches
         from docx.enum.text import WD_ALIGN_PARAGRAPH
     except ImportError:
         print("[ERREUR] pip install python-docx")
