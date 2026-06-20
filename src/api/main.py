@@ -52,11 +52,7 @@ async def health():
 
 @app.post("/api/transcribe")
 async def transcribe(audio: UploadFile = File(...)):
-    """Upload audio → transcription texte via Gladia."""
-    gladia_key = os.environ.get("GLADIA_API_KEY")
-    if not gladia_key:
-        return {"transcription": MOCK_TRANSCRIPTION, "mock": True}
-
+    """Upload audio → transcription texte via faster-whisper (local)."""
     suffix = Path(audio.filename or "audio.mp3").suffix
     with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
         tmp.write(await audio.read())
@@ -65,7 +61,7 @@ async def transcribe(audio: UploadFile = File(...)):
     try:
         transcription = transcribe_audio(tmp_path)
     except Exception as e:
-        raise HTTPException(500, f"Erreur transcription Gladia : {e}") from e
+        raise HTTPException(500, f"Erreur transcription : {e}") from e
     finally:
         Path(tmp_path).unlink(missing_ok=True)
 
