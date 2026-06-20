@@ -470,6 +470,15 @@ def structure_cr(transcription: str, projet: str, use_mock: bool) -> dict:
 # 3. EXPORT WORD
 # --------------------------------------------------------------------------- #
 
+def _format_timestamp(iso_str: str) -> str:
+    """Converts ISO timestamp to French format: DD/MM/YYYY HH:mm"""
+    try:
+        dt = datetime.fromisoformat(iso_str.replace("Z", "+00:00"))
+        return dt.strftime("%d/%m/%Y %H:%M")
+    except Exception:
+        return iso_str
+
+
 def normalize_cr(cr: dict) -> dict:
     """Normalise les champs qui peuvent être liste ou dict au lieu de str."""
     for lot in cr.get("lots", []):
