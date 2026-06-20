@@ -642,7 +642,188 @@ def export_word(cr: dict, projet: str, output_path: str):
 
 
 # --------------------------------------------------------------------------- #
-# 4. MAIN
+# 4. EXPORT PDF (fpdf2)
+# --------------------------------------------------------------------------- #
+
+def export_pdf(cr: dict, projet: str, output_path: str):
+    """Génère un PDF du CR de chantier via fpdf2."""
+    try:
+        from fpdf import FPDF
+    except ImportError:
+        print("[ERREUR] pip install fpdf2")
+        sys.exit(1)
+
+    cr = normalize_cr(cr)
+
+    pdf = FPDF()
+    pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.set_margins(20, 20, 20)
+    pdf.add_page()
+
+    BLUE = (31, 73, 125)
+    GREY = (100, 100, 100)
+
+    def set_blue():
+        pdf.set_text_color(*BLUE)
+
+    def set_black():
+        pdf.set_text_color(0, 0, 0)
+
+    def section_title(text: str):
+        pdf.ln(2)
+        pdf.set_font("Helvetica", "B", 11)
+        set_blue()
+        pdf.cell(0, 8, text, new_x="LMARGIN", new_y="NEXT")
+        set_black()
+        pdf.set_draw_color(*BLUE)
+        pdf.set_line_width(0.3)
+        pdf.line(pdf.l_margin, pdf.get_y(), 210 - pdf.r_margin, pdf.get_y())
+        pdf.ln(2)
+
+    def info_line(label: str, value: str):
+        if not value:
+            return
+        pdf.set_font("Helvetica", "B", 10)
+        pdf.cell(40, 7, f"{label} :", new_x="RIGHT", new_y="TOP")
+        pdf.set_font("Helvetica", "", 10)
+        pdf.multi_cell(0, 7, value, new_x="LMARGIN", new_y="NEXT")
+
+    # ── Titre ──────────────────────────────────────────────────────────────
+    pdf.set_font("Helvetica", "B", 16)
+    set_blue()
+    pdf.cell(0, 10, "COMPTE RENDU DE CHANTIER", align="C", new_x="LMARGIN", new_y="NEXT")
+    if cr.get("numero_cr"):
+        pdf.set_font("Helvetica", "B", 12)
+        pdf.cell(0, 8, f"N° {cr['numero_cr']}", align="C", new_x="LMARGIN", new_y="NEXT")
+    set_black()
+    pdf.set_draw_color(*BLUE)
+    pdf.set_line_width(0.5)
+    pdf.line(pdf.l_margin, pdf.get_y() + 2, 210 - pdf.r_margin, pdf.get_y() + 2)
+    pdf.ln(6)
+
+    # ── En-tête ─────────────────────────────────────────────────────────────
+    info_line("Op\xe9ration", projet)
+    info_line("Date", cr.get("date_reunion", ""))
+    info_line("Lieu", cr.get("lieu", ""))
+    pdf.ln(2)
+
+    # ── Présents ─────────────────────────────────────────────────────────────
+    presents = cr.get("presents", [])
+    if presents:
+        section_title("PR\xc9SENTS")
+        pdf.set_font("Helvetica", "", 10)
+        for p in presents:
+            parts = [p.get("nom", ""), p.get("qualite", ""), p.get("entreprise", "")]
+            line = " — ".join(x for x in parts if x)
+            pdf.set_x(pdf.l_margin + 3)
+            pdf.cell(5, 6, "•", new_x="RIGHT", new_y="TOP")
+            pdf.multi_cell(0, 6, line, new_x="LMARGIN", new_y="NEXT")
+
+    absents = cr.get("absents", [])
+    if absents:
+        pdf.ln(1)
+        pdf.set_font("Helvetica", "BI", 9)
+        pdf.set_text_color(*GREY)
+        pdf.cell(0, 6, "Absents excus\xe9s", new_x="LMARGIN", new_y="NEXT")
+        set_black()
+        pdf.set_font("Helvetica", "", 10)
+        for p in absents:
+            parts = [p.get("nom", ""), p.get("qualite", ""), p.get("entreprise", "")]
+            line = " — ".join(x for x in parts if x)
+            pdf.set_x(pdf.l_margin + 3)
+            pdf.cell(5, 6, "•", new_x="RIGHT", new_y="TOP")
+            pdf.multi_cell(0, 6, line, new_x="LMARGIN", new_y="NEXT")
+
+    # ── Lots ─────────────────────────────────────────────────────────────────
+    section_title("POINTS ABORD\xc9S PAR LOT")
+
+    for lot in cr.get("lots", []):
+        lot_title = f"LOT {lot.get('numero', '')} — {lot.get('nom', '')}"
+        if lot.get("entreprise"):
+            lot_title += f" ({lot['entreprise']})"
+        pdf.set_font("Helvetica", "B", 10)
+        set_blue()
+        pdf.cell(0, 7, lot_title, new_x="LMARGIN", new_y="NEXT")
+        set_black()
+
+        for point in lot.get("points", []):
+            desc = point.get("description", "")
+            if desc:
+                pdf.set_font("Helvetica", "", 10)
+                pdf.set_x(pdf.l_margin + 5)
+                pdf.cell(5, 6, "•", new_x="RIGHT", new_y="TOP")
+                pdf.multi_cell(0, 6, desc, new_x="LMARGIN", new_y="NEXT")
+
+            for label, key in [("D\xe9cision", "decision"), ("Action", "action"),
+                                ("Responsable", "responsable"), ("D\xe9lai", "delai")]:
+                val = point.get(key, "")
+                if val:
+                    pdf.set_x(pdf.l_margin + 10)
+                    pdf.set_font("Helvetica", "B", 9)
+                    pdf.cell(28, 5, f"{label} :", new_x="RIGHT", new_y="TOP")
+                    pdf.set_font("Helvetica", "", 9)
+                    pdf.multi_cell(0, 5, val, new_x="LMARGIN", new_y="NEXT")
+
+            for photo in point.get("photos", []):
+                try:
+                    img_bytes = base64.b64decode(photo.get("data", ""))
+                    y_start = pdf.get_y()
+                    pdf.image(
+                        io.BytesIO(img_bytes),
+                        x=pdf.l_margin + 10,
+                        y=y_start,
+                        w=50,
+                        h=35,
+                        keep_aspect_ratio=True,
+                    )
+                    pdf.set_y(y_start + 37)
+                    if photo.get("timestamp"):
+                        pdf.set_x(pdf.l_margin + 10)
+                        pdf.set_font("Helvetica", "I", 7)
+                        pdf.set_text_color(*GREY)
+                        pdf.cell(50, 4, _format_timestamp(photo["timestamp"]),
+                                 align="C", new_x="LMARGIN", new_y="NEXT")
+                        set_black()
+                    pdf.ln(2)
+                except Exception:
+                    pass
+
+            pdf.ln(1)
+        pdf.ln(2)
+
+    # ── Divers ────────────────────────────────────────────────────────────────
+    divers = [d for d in cr.get("divers", []) if d]
+    if divers:
+        section_title("QUESTIONS / DIVERS")
+        pdf.set_font("Helvetica", "", 10)
+        for d in divers:
+            pdf.set_x(pdf.l_margin + 3)
+            pdf.cell(5, 6, "•", new_x="RIGHT", new_y="TOP")
+            pdf.multi_cell(0, 6, d, new_x="LMARGIN", new_y="NEXT")
+
+    # ── Prochaine réunion ─────────────────────────────────────────────────────
+    pr = cr.get("prochaine_reunion", {})
+    if pr.get("date") or pr.get("lieu"):
+        section_title("PROCHAINE R\xc9UNION")
+        info_line("Date", pr.get("date", ""))
+        info_line("Lieu", pr.get("lieu", ""))
+
+    # ── Diffusion ─────────────────────────────────────────────────────────────
+    diffusion = [d for d in cr.get("diffusion", []) if d]
+    if diffusion:
+        section_title("DIFFUSION")
+        pdf.set_font("Helvetica", "", 10)
+        for d in diffusion:
+            pdf.set_x(pdf.l_margin + 3)
+            pdf.cell(5, 6, "•", new_x="RIGHT", new_y="TOP")
+            pdf.multi_cell(0, 6, d, new_x="LMARGIN", new_y="NEXT")
+
+    pdf.output(output_path)
+    print(f"CR PDF export\xe9 : {output_path}")
+
+
+# --------------------------------------------------------------------------- #
+# 5. MAIN
 # --------------------------------------------------------------------------- #
 
 def main():
