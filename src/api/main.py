@@ -38,6 +38,7 @@ app.add_middleware(
 class StructureRequest(BaseModel):
     transcription: str
     projet: str = "Projet"
+    context_projet: dict | None = None
 
 
 class ExportRequest(BaseModel):
