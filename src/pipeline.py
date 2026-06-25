@@ -605,7 +605,7 @@ def export_word(cr: dict, projet: str, output_path: str, cabinet: dict | None = 
 # 4. EXPORT PDF (fpdf2)
 # --------------------------------------------------------------------------- #
 
-def export_pdf(cr: dict, projet: str, output_path: str):
+def export_pdf(cr: dict, projet: str, output_path: str, cabinet: dict | None = None):
     """Génère un PDF du CR de chantier via fpdf2."""
     try:
         from fpdf import FPDF
