@@ -123,7 +123,8 @@ async def export_to_pdf(req: ExportRequest):
         tmp_path = tmp.name
 
     try:
-        export_pdf(req.cr, req.projet, tmp_path)
+        cabinet = req.cabinet.model_dump() if req.cabinet else None
+        export_pdf(req.cr, req.projet, tmp_path, cabinet=cabinet)
         pdf_bytes = Path(tmp_path).read_bytes()
     except Exception as e:
         raise HTTPException(500, f"Erreur export PDF : {e}") from e
