@@ -75,7 +75,7 @@ async def structure(req: StructureRequest):
     mistral_key = os.environ.get("MISTRAL_API_KEY")
     use_mock = not mistral_key or not req.transcription.strip()
     try:
-        cr = structure_cr(req.transcription, req.projet, use_mock=use_mock)
+        cr = structure_cr(req.transcription, req.projet, use_mock=use_mock, context_projet=req.context_projet)
     except Exception as e:
         raise HTTPException(500, f"Erreur structuration : {e}") from e
     return cr
