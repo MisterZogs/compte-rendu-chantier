@@ -629,6 +629,43 @@ def export_pdf(cr: dict, projet: str, output_path: str, cabinet: dict | None = N
     def set_black():
         pdf.set_text_color(0, 0, 0)
 
+    # ── Entête cabinet ────────────────────────────────────────────────────────
+    if cabinet:
+        has_logo = cabinet.get("logo") and cabinet.get("logoMime")
+        has_info = any(cabinet.get(k) for k in ("nomCabinet", "adresse", "telephone", "email", "siteWeb"))
+
+        if has_logo:
+            try:
+                img_bytes = base64.b64decode(cabinet["logo"])
+                pdf.image(io.BytesIO(img_bytes), x=20, y=pdf.get_y(), h=12, keep_aspect_ratio=True)
+                pdf.set_y(pdf.get_y() + 14)
+            except Exception:
+                pass
+
+        if has_info:
+            info_parts = []
+            if cabinet.get("nomCabinet"):
+                info_parts.append(("B", cabinet["nomCabinet"]))
+            for key in ("adresse", "telephone", "email", "siteWeb"):
+                if cabinet.get(key):
+                    info_parts.append(("", cabinet[key]))
+            pdf.set_text_color(*GREY)
+            for i, (style_type, text) in enumerate(info_parts):
+                pdf.set_font("Helvetica", style_type, 8)
+                if i > 0:
+                    pdf.set_font("Helvetica", "", 8)
+                    pdf.write(5, "  ·  ")
+                    pdf.set_font("Helvetica", style_type, 8)
+                pdf.write(5, text)
+            pdf.ln(5)
+            set_black()
+
+        # Ligne de séparation
+        pdf.set_draw_color(*BLUE)
+        pdf.set_line_width(0.3)
+        pdf.line(pdf.l_margin, pdf.get_y(), 210 - pdf.r_margin, pdf.get_y())
+        pdf.ln(4)
+
     def section_title(text: str):
         pdf.ln(2)
         pdf.set_font("Helvetica", "B", 11)
