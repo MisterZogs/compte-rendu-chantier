@@ -41,9 +41,20 @@ class StructureRequest(BaseModel):
     context_projet: dict | None = None
 
 
+class CabinetInfo(BaseModel):
+    nomCabinet: str | None = None
+    adresse: str | None = None
+    telephone: str | None = None
+    email: str | None = None
+    siteWeb: str | None = None
+    logo: str | None = None      # base64
+    logoMime: str | None = None  # 'image/png' | 'image/jpeg'
+
+
 class ExportRequest(BaseModel):
     cr: dict
     projet: str = "Projet"
+    cabinet: CabinetInfo | None = None
 
 
 @app.get("/health")
