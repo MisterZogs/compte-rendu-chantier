@@ -99,7 +99,8 @@ async def export(req: ExportRequest):
         tmp_path = tmp.name
 
     try:
-        export_word(req.cr, req.projet, tmp_path)
+        cabinet = req.cabinet.model_dump() if req.cabinet else None
+        export_word(req.cr, req.projet, tmp_path, cabinet=cabinet)
         docx_bytes = Path(tmp_path).read_bytes()
     except Exception as e:
         raise HTTPException(500, f"Erreur export Word : {e}") from e
