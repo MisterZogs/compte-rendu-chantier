@@ -214,8 +214,10 @@ def structure_with_mistral(transcription: str, projet: str, context_projet: dict
     client = Mistral(api_key=api_key)
     print("Structuration via Mistral Medium 3...")
 
+    context_section = _build_context_section(context_projet)
+
     user_prompt = f"""Voici la transcription d'une réunion de chantier.
-Projet : {projet}
+Projet : {projet}{context_section}
 
 Transcription :
 {transcription}
