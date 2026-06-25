@@ -355,11 +355,11 @@ MOCK_CR = {
 }
 
 
-def structure_cr(transcription: str, projet: str, use_mock: bool) -> dict:
+def structure_cr(transcription: str, projet: str, use_mock: bool, context_projet: dict | None = None) -> dict:
     if use_mock:
         print("[MOCK] Utilisation du CR de démonstration.")
         return MOCK_CR
-    return structure_with_mistral(transcription, projet)
+    return structure_with_mistral(transcription, projet, context_projet)
 
 
 # --------------------------------------------------------------------------- #
