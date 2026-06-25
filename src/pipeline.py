@@ -398,7 +398,68 @@ def normalize_cr(cr: dict) -> dict:
     return cr
 
 
-def export_word(cr: dict, projet: str, output_path: str):
+def _add_cabinet_header_docx(doc, cabinet: dict | None):
+    """Insère logo + infos cabinet en haut du document Word."""
+    if not cabinet:
+        return
+    try:
+        from docx.shared import Pt, RGBColor, Inches
+        from docx.enum.text import WD_ALIGN_PARAGRAPH
+        import io
+    except ImportError:
+        return
+
+    has_logo = cabinet.get("logo") and cabinet.get("logoMime")
+    has_info = any(cabinet.get(k) for k in ("nomCabinet", "adresse", "telephone", "email", "siteWeb"))
+
+    if not has_logo and not has_info:
+        return
+
+    if has_logo:
+        p = doc.add_paragraph()
+        run = p.add_run()
+        try:
+            img_bytes = base64.b64decode(cabinet["logo"])
+            run.add_picture(io.BytesIO(img_bytes), height=Inches(0.6))
+        except Exception:
+            pass
+        p.paragraph_format.space_after = Pt(2)
+
+    if has_info:
+        info_parts = []
+        if cabinet.get("nomCabinet"):
+            info_parts.append(("bold", cabinet["nomCabinet"]))
+        for key in ("adresse", "telephone", "email", "siteWeb"):
+            if cabinet.get(key):
+                info_parts.append(("normal", cabinet[key]))
+
+        p = doc.add_paragraph()
+        for i, (style_type, text) in enumerate(info_parts):
+            if i > 0:
+                p.add_run("  ·  ")
+            run = p.add_run(text)
+            run.font.size = Pt(8)
+            if style_type == "bold":
+                run.bold = True
+            run.font.color.rgb = RGBColor(0x55, 0x55, 0x55)
+
+    # Ligne de séparation
+    from docx.oxml.ns import qn
+    from docx.oxml import OxmlElement
+    p = doc.add_paragraph()
+    p.paragraph_format.space_after = Pt(6)
+    pPr = p._p.get_or_add_pPr()
+    pBdr = OxmlElement('w:pBdr')
+    bottom = OxmlElement('w:bottom')
+    bottom.set(qn('w:val'), 'single')
+    bottom.set(qn('w:sz'), '4')
+    bottom.set(qn('w:space'), '1')
+    bottom.set(qn('w:color'), '1F497D')
+    pBdr.append(bottom)
+    pPr.append(pBdr)
+
+
+def export_word(cr: dict, projet: str, output_path: str, cabinet: dict | None = None):
     cr = normalize_cr(cr)
     try:
         from docx import Document
@@ -433,6 +494,9 @@ def export_word(cr: dict, projet: str, output_path: str):
         run.bold = True
         p.add_run(str(value))
         p.paragraph_format.space_after = Pt(2)
+
+    # Entête cabinet
+    _add_cabinet_header_docx(doc, cabinet)
 
     # En-tête
     titre = doc.add_paragraph()
