@@ -171,7 +171,35 @@ FORMAT DE SORTIE (utilise ces clés exactement, ne copie pas les valeurs) :
 }"""
 
 
-def structure_with_mistral(transcription: str, projet: str) -> dict:
+def _build_context_section(context_projet: dict | None) -> str:
+    """Construit la section de contexte projet à injecter dans le prompt utilisateur."""
+    if not context_projet:
+        return ""
+    lots = context_projet.get("lotsRecurrents") or []
+    intervenants = context_projet.get("intervenants") or []
+    if not lots and not intervenants:
+        return ""
+    lines = ["\nCONTEXTE DU PROJET (données des réunions précédentes) :"]
+    if lots:
+        lines.append("Lots habituels :")
+        for lot in lots:
+            entreprise = lot.get("entreprise", "")
+            suffix = f" ({entreprise})" if entreprise else ""
+            lines.append(f"  - LOT {lot.get('numero', '')} {lot.get('nom', '')}{suffix}")
+    if intervenants:
+        lines.append("Intervenants habituels :")
+        for p in intervenants:
+            parts = [p.get("nom", ""), p.get("qualite", ""), p.get("entreprise", "")]
+            lines.append("  - " + " — ".join(x for x in parts if x))
+    lines.append(
+        "Utilise ces informations pour mieux identifier les intervenants si leur nom "
+        "est partiellement prononcé ou mal transcrit. Tout nouvel intervenant mentionné "
+        "dans la transcription doit être ajouté normalement."
+    )
+    return "\n".join(lines)
+
+
+def structure_with_mistral(transcription: str, projet: str, context_projet: dict | None = None) -> dict:
     api_key = os.environ.get("MISTRAL_API_KEY")
     if not api_key:
         print("[ERREUR] MISTRAL_API_KEY non définie. Utilisez le mode mock.")
