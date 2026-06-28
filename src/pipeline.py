@@ -733,7 +733,7 @@ def export_pdf(cr: dict, projet: str, output_path: str, cabinet: dict | None = N
         pdf.set_font("Helvetica", "", 10)
         for p in presents:
             parts = [p.get("nom", ""), p.get("qualite", ""), p.get("entreprise", "")]
-            line = " — ".join(x for x in parts if x)
+            line = _pdf_safe(" - ".join(x for x in parts if x))
             pdf.set_x(pdf.l_margin + 3)
             pdf.cell(5, 6, "-", new_x="RIGHT", new_y="TOP")
             pdf.multi_cell(0, 6, line, new_x="LMARGIN", new_y="NEXT")
@@ -748,7 +748,7 @@ def export_pdf(cr: dict, projet: str, output_path: str, cabinet: dict | None = N
         pdf.set_font("Helvetica", "", 10)
         for p in absents:
             parts = [p.get("nom", ""), p.get("qualite", ""), p.get("entreprise", "")]
-            line = " — ".join(x for x in parts if x)
+            line = _pdf_safe(" - ".join(x for x in parts if x))
             pdf.set_x(pdf.l_margin + 3)
             pdf.cell(5, 6, "-", new_x="RIGHT", new_y="TOP")
             pdf.multi_cell(0, 6, line, new_x="LMARGIN", new_y="NEXT")
@@ -757,9 +757,9 @@ def export_pdf(cr: dict, projet: str, output_path: str, cabinet: dict | None = N
     section_title("POINTS ABORD\xc9S PAR LOT")
 
     for lot in cr.get("lots", []):
-        lot_title = f"LOT {lot.get('numero', '')} — {lot.get('nom', '')}"
+        lot_title = _pdf_safe(f"LOT {lot.get('numero', '')} - {lot.get('nom', '')}")
         if lot.get("entreprise"):
-            lot_title += f" ({lot['entreprise']})"
+            lot_title += _pdf_safe(f" ({lot['entreprise']})")
         pdf.set_font("Helvetica", "B", 10)
         set_blue()
         pdf.cell(0, 7, lot_title, new_x="LMARGIN", new_y="NEXT")
@@ -771,7 +771,7 @@ def export_pdf(cr: dict, projet: str, output_path: str, cabinet: dict | None = N
                 pdf.set_font("Helvetica", "", 10)
                 pdf.set_x(pdf.l_margin + 5)
                 pdf.cell(5, 6, "-", new_x="RIGHT", new_y="TOP")
-                pdf.multi_cell(0, 6, desc, new_x="LMARGIN", new_y="NEXT")
+                pdf.multi_cell(0, 6, _pdf_safe(desc), new_x="LMARGIN", new_y="NEXT")
 
             for label, key in [("D\xe9cision", "decision"), ("Action", "action"),
                                 ("Responsable", "responsable"), ("D\xe9lai", "delai")]:
@@ -781,7 +781,7 @@ def export_pdf(cr: dict, projet: str, output_path: str, cabinet: dict | None = N
                     pdf.set_font("Helvetica", "B", 9)
                     pdf.cell(28, 5, f"{label} :", new_x="RIGHT", new_y="TOP")
                     pdf.set_font("Helvetica", "", 9)
-                    pdf.multi_cell(0, 5, val, new_x="LMARGIN", new_y="NEXT")
+                    pdf.multi_cell(0, 5, _pdf_safe(val), new_x="LMARGIN", new_y="NEXT")
 
             for photo in point.get("photos", []):
                 try:
