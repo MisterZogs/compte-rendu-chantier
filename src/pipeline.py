@@ -735,7 +735,7 @@ def export_pdf(cr: dict, projet: str, output_path: str, cabinet: dict | None = N
             parts = [p.get("nom", ""), p.get("qualite", ""), p.get("entreprise", "")]
             line = " — ".join(x for x in parts if x)
             pdf.set_x(pdf.l_margin + 3)
-            pdf.cell(5, 6, "•", new_x="RIGHT", new_y="TOP")
+            pdf.cell(5, 6, "-", new_x="RIGHT", new_y="TOP")
             pdf.multi_cell(0, 6, line, new_x="LMARGIN", new_y="NEXT")
 
     absents = cr.get("absents", [])
@@ -750,7 +750,7 @@ def export_pdf(cr: dict, projet: str, output_path: str, cabinet: dict | None = N
             parts = [p.get("nom", ""), p.get("qualite", ""), p.get("entreprise", "")]
             line = " — ".join(x for x in parts if x)
             pdf.set_x(pdf.l_margin + 3)
-            pdf.cell(5, 6, "•", new_x="RIGHT", new_y="TOP")
+            pdf.cell(5, 6, "-", new_x="RIGHT", new_y="TOP")
             pdf.multi_cell(0, 6, line, new_x="LMARGIN", new_y="NEXT")
 
     # ── Lots ─────────────────────────────────────────────────────────────────
@@ -770,7 +770,7 @@ def export_pdf(cr: dict, projet: str, output_path: str, cabinet: dict | None = N
             if desc:
                 pdf.set_font("Helvetica", "", 10)
                 pdf.set_x(pdf.l_margin + 5)
-                pdf.cell(5, 6, "•", new_x="RIGHT", new_y="TOP")
+                pdf.cell(5, 6, "-", new_x="RIGHT", new_y="TOP")
                 pdf.multi_cell(0, 6, desc, new_x="LMARGIN", new_y="NEXT")
 
             for label, key in [("D\xe9cision", "decision"), ("Action", "action"),
@@ -817,7 +817,7 @@ def export_pdf(cr: dict, projet: str, output_path: str, cabinet: dict | None = N
         pdf.set_font("Helvetica", "", 10)
         for d in divers:
             pdf.set_x(pdf.l_margin + 3)
-            pdf.cell(5, 6, "•", new_x="RIGHT", new_y="TOP")
+            pdf.cell(5, 6, "-", new_x="RIGHT", new_y="TOP")
             pdf.multi_cell(0, 6, d, new_x="LMARGIN", new_y="NEXT")
 
     # ── Prochaine réunion ─────────────────────────────────────────────────────
@@ -834,7 +834,7 @@ def export_pdf(cr: dict, projet: str, output_path: str, cabinet: dict | None = N
         pdf.set_font("Helvetica", "", 10)
         for d in diffusion:
             pdf.set_x(pdf.l_margin + 3)
-            pdf.cell(5, 6, "•", new_x="RIGHT", new_y="TOP")
+            pdf.cell(5, 6, "-", new_x="RIGHT", new_y="TOP")
             pdf.multi_cell(0, 6, d, new_x="LMARGIN", new_y="NEXT")
 
     pdf.output(output_path)
