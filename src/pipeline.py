@@ -705,7 +705,7 @@ def export_pdf(cr: dict, projet: str, output_path: str, cabinet: dict | None = N
         pdf.set_font("Helvetica", "B", 10)
         pdf.cell(40, 7, f"{label} :", new_x="RIGHT", new_y="TOP")
         pdf.set_font("Helvetica", "", 10)
-        pdf.multi_cell(0, 7, value, new_x="LMARGIN", new_y="NEXT")
+        pdf.multi_cell(0, 7, _pdf_safe(value), new_x="LMARGIN", new_y="NEXT")
 
     # ── Titre ──────────────────────────────────────────────────────────────
     pdf.set_font("Helvetica", "B", 16)
