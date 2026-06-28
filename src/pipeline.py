@@ -818,7 +818,7 @@ def export_pdf(cr: dict, projet: str, output_path: str, cabinet: dict | None = N
         for d in divers:
             pdf.set_x(pdf.l_margin + 3)
             pdf.cell(5, 6, "-", new_x="RIGHT", new_y="TOP")
-            pdf.multi_cell(0, 6, d, new_x="LMARGIN", new_y="NEXT")
+            pdf.multi_cell(0, 6, _pdf_safe(d), new_x="LMARGIN", new_y="NEXT")
 
     # ── Prochaine réunion ─────────────────────────────────────────────────────
     pr = cr.get("prochaine_reunion", {})
