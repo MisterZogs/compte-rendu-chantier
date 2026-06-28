@@ -605,6 +605,28 @@ def export_word(cr: dict, projet: str, output_path: str, cabinet: dict | None = 
 # 4. EXPORT PDF (fpdf2)
 # --------------------------------------------------------------------------- #
 
+def _pdf_safe(text: str) -> str:
+    """Remplace les caractères hors Latin-1 courants dans les CR générés par Mistral."""
+    replacements = {
+        "•": "-",   # •  bullet
+        "–": "-",   # –  en dash
+        "—": "-",   # —  em dash
+        "’": "'",   # '  right single quote
+        "‘": "'",   # '  left single quote
+        "“": '"',   # "  left double quote
+        "”": '"',   # "  right double quote
+        "…": "...", # …  ellipsis
+        "Œ": "OE",  # Œ
+        "œ": "oe",  # œ
+        "æ": "ae",  # æ
+        "Æ": "AE",  # Æ
+    }
+    for char, repl in replacements.items():
+        text = text.replace(char, repl)
+    # Encode en Latin-1, remplace ce qui reste
+    return text.encode("latin-1", errors="replace").decode("latin-1")
+
+
 def export_pdf(cr: dict, projet: str, output_path: str, cabinet: dict | None = None):
     """Génère un PDF du CR de chantier via fpdf2."""
     try:
